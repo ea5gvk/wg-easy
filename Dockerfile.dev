@@ -1,0 +1,31 @@
+# As a workaround we have to build on nodejs 18
+# nodejs 20 hangs on build with armv6/armv7
+FROM docker.io/library/node:20-alpine
+WORKDIR /app
+
+# Install pnpm
+RUN corepack enable pnpm
+
+# Copy Web UI
+COPY src ./
+RUN pnpm install
+
+HEALTHCHECK CMD /usr/bin/timeout 5s /bin/sh -c "/usr/bin/wg show | /bin/grep -q interface || exit 1" --interval=1m --timeout=5s --retries=3
+
+# Install Linux packages
+RUN apk add --no-cache \
+    dpkg \
+    dumb-init \
+    iptables \
+    ip6tables \
+    iptables-legacy \
+    wireguard-tools
+
+# Use iptables-legacy
+RUN update-alternatives --install /sbin/iptables iptables /sbin/iptables-legacy 10 --slave /sbin/iptables-restore iptables-restore /sbin/iptables-legacy-restore --slave /sbin/iptables-save iptables-save /sbin/iptables-legacy-save
+RUN update-alternatives --install /sbin/ip6tables ip6tables /sbin/ip6tables-legacy 10 --slave /sbin/ip6tables-restore ip6tables-restore /sbin/ip6tables-legacy-restore --slave /sbin/ip6tables-save ip6tables-save /sbin/ip6tables-legacy-save
+
+# Set Environment
+ENV DEBUG=Server,WireGuard,LowDB
+ENV PORT=51821
+ENV HOST=0.0.0.0
